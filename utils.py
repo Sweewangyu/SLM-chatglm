@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import os
+import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from transformers import (
     DataCollatorForLanguageModeling,
@@ -51,18 +52,28 @@ class PretrainDataset(Dataset):
         return {'input_ids': torch.from_numpy(X), 'labels': torch.from_numpy(Y)}
 
 
+
+
+
 class MyTrainerCallback(TrainerCallback):
     log_cnt = 0
+    loss_values = []  # 用于存储损失值
+
     def on_log(
             self,
             args: TrainingArguments,
             state: TrainerState,
             control: TrainerControl,
+            logs=None,
             **kwargs,
     ):
         self.log_cnt += 1
         if self.log_cnt % 2 == 0:
             torch.cuda.empty_cache()
+
+        # 记录损失值
+        if logs and "loss" in logs:
+            self.loss_values.append(logs["loss"])
 
     def on_epoch_end(
             self,
@@ -73,3 +84,26 @@ class MyTrainerCallback(TrainerCallback):
     ):
         control.should_save = True
         return control
+
+    def on_train_end(
+            self,
+            args: TrainingArguments,
+            state: TrainerState,
+            control: TrainerControl,
+            **kwargs,
+    ):
+        # 在训练结束时绘制损失曲线
+        self.plot_loss_curve()
+
+    def plot_loss_curve(self):
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.loss_values, label="Training Loss")
+        plt.xlabel("Steps")
+        plt.ylabel("Loss")
+        plt.title("Training Loss Curve")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        plt.savefig("loss_curve.png")
+
+
